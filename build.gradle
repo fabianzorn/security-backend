@@ -2,10 +2,21 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.5'
     id 'io.spring.dependency-management' version '1.1.4'
+    id 'org.sonarqube' version '5.0.0.4638'
+    id 'jacoco'
 }
 
 group = 'de.fabianzorn'
-version = '0.0.1-SNAPSHOT'
+def initVersion = 'v.0.0.0'
+version = initVersion
+
+sourceSets {
+    generated {
+        java {
+            srcDirs = ['build/generated/java']
+        }
+    }
+}
 
 java {
     sourceCompatibility = '21'
@@ -21,17 +32,72 @@ repositories {
     mavenCentral()
 }
 
+jar {
+    duplicatesStrategy = 'INCLUDE'
+    enabled = false
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.projectlombok:lombok'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:mongodb'
 }
 
-tasks.named('test') {
+sonar {
+    properties {
+        property 'sonar.host.url', 'http://localhost:9000'
+        property "sonar.token", 'sqa_279e303df5d2984ca61500b0c59590c550e79e35'
+        property "sonar.projectKey", 'project:security-backend'
+        property 'sonar.projectName', 'Security Backend'
+        property 'sonar.sources', 'src/main'
+        property 'sonar.java.source', 21
+        property 'sonar.gradle.skipCompile', 'true'
+        property 'sonar.test.exclusions', 'src/test/**'
+        property 'sonar.exclusions', '**/*Generated.java,src/test'
+        property 'sonar.coverage.exclusions', '**/*Configuration.java,**/*Application.java'
+        property 'sonar.scm.disabled', 'true'
+        property 'encoding', 'UTF-8'
+        property 'charSet', 'UTF-8'
+    }
+}
+
+tasks.named('test', Test) {
     useJUnitPlatform()
+
+    // listen to events in the test execution lifecycle
+    beforeTest {
+        descriptor -> logger.lifecycle("Running test: " + descriptor)
+    }
+
+    finalizedBy('jacocoTestReport')
+
+    // show standard out and standard error of the test JVM(s) on the console
+    testLogging.showStandardStreams = true
+
+    // set heap size for the test JVM(s)
+    maxHeapSize = "1G"
+
+    // fail the 'test' task on the first test failure
+    failFast = true
+}
+
+jacoco {
+    toolVersion = '0.8.9'
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn test
+
+    reports {
+        xml.required = true
+        csv.required = true
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
+    }
 }
